@@ -156,11 +156,11 @@ class LocalArgs:
     # Facet for extracting descriptors
     desc_facet: Literal["query", "key", "value", "token"] = "key"
     # Sub-sample query images (RAM or VRAM constraints) (1 = off)
-    sub_sample_qu: int = 1
+    sub_sample_qu: int = 6
     # Sub-sample database images (RAM or VRAM constraints) (1 = off)
-    sub_sample_db: int = 1
+    sub_sample_db: int = 6
     # Sub-sample database images for VLAD clustering only
-    sub_sample_db_vlad: int = 1
+    sub_sample_db_vlad: int = 2
     """
         Use sub-sampling for creating the VLAD cluster centers. Use
         this to reduce the RAM usage during the clustering process.
@@ -438,7 +438,7 @@ def build_vlads_fm_global(largs: LocalArgs, vpr_ds: BaseDataset,
             print("Building VLADs for vpair distractors...")
         try:
             db_dis_indices = np.arange(0, num_dis_db, 
-                    largs.sub_sample_db)
+                    largs.sub_sample_db*3)
             db_dis_img_names = vpr_distractor_ds.get_image_relpaths(
                     db_dis_indices)
             if c_dbq and vlad.can_use_cache_ids(db_dis_img_names):
@@ -492,6 +492,8 @@ def main(largs: LocalArgs):
     print(f"Dataset directory: {ds_dir}")
     ds_use = [ds for ds in largs.db_samples \
             if largs.db_samples[ds] != 0]
+    print(f"Datasets to use (with sub-sampling frequencies): "\
+            f"{ {ds: largs.db_samples[ds] for ds in ds_use} }")
     assert len(ds_use) > 0, "No datasets selected"
     glob_ds = GlobalVLADVocabularyDataset(ds_use, ds_dir, ds_split, 
             largs.bd_args, [largs.db_samples[k] for k in ds_use])

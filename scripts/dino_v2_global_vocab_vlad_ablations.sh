@@ -5,12 +5,15 @@
 
 # ---- Program arguments for user (after setting up datasets) ----
 # Directory for storing VLAD cache (an ID will be used in a subfolder)
-cache_dir="/scratch/avneesh.mishra/vl-vpr/cache/video_clusters"
+# cache_dir="/scratch/avneesh.mishra/vl-vpr/cache/video_clusters"
+cache_dir="/home/pjimenez/workspaces/anyloc_ws/src/AnyLoc/demo/cache"
 # Directory where the datasets are downloaded
-data_vg_dir="/home2/avneesh.mishra/Documents/vl-vpr/datasets_vg/datasets"
+# data_vg_dir="/home2/avneesh.mishra/Documents/vl-vpr/datasets_vg/datasets"
+data_vg_dir="/media/pjimenez/ExtremeSSD/Backup_portatil_pjimenez/Tarea_Localizacion/AnyLoc2023-Public-Data/Public/Datasets-All"
 # Dino models and layers: "Model, <Space separated layers>"
 dino_models_layers=(
-    "dinov2_vitg14, 31"
+    # "dinov2_vitg14, 31"
+    "dinov2_vitl14, 20"
     # "dinov2_vitg14, `echo {39..0..1}`"
     # "dinov2_vitl14, `echo {23..0..1}`"
     # "dinov2_vitb14, `echo {11..0..1}`"
@@ -22,14 +25,16 @@ dino_facets=("value")
 # Datasets
 # datasets=("eiffel")
 datasets=("VPAir")
+# datasets=("Oxford")
 # Number of VLAD clusters
 # num_clusters=(256 128 64 32)
-num_clusters=(32)
+num_clusters=(16)
 # Global vocabulary (datasets to include)
 # global_vocabs=("structured" "unstructured" "both")
 # global_vocabs=("both")
 # global_vocabs=("indoor" "urban" "aerial" "hawkins" "laurel_caverns")
 global_vocabs=("aerial")
+# global_vocabs=("urban")
 # GPU
 gpu=${1:-0}
 export CUDA_VISIBLE_DEVICES=$gpu
@@ -86,10 +91,10 @@ for global_vocab in ${global_vocabs[*]}; do
     # ID for VLAD cache (model identifier)
     model_id="l${layer}_${facet}_c${nc}/${global_vocab}"
     wandb_name="DINO_V2_VLAD_GLOBAL_VOCAB/${model_id}/${dataset}/${dino_model}"
-    exp_id="exp/6b82"
+    exp_id="anyloc_aerial"
     python_cmd="python ./scripts/dino_v2_global_vocab_vlad.py"
     python_cmd+=" --exp-id ${exp_id}"
-    python_cmd+=" --vlad-cache-dir ${cache_dir}/vpr_global_vocab/${dino_model}/${model_id}"
+    python_cmd+=" --vlad-cache-dir ${cache_dir}/vocabulary/${dino_model}/${model_id}"
     python_cmd+=" --num-clusters $nc"
     python_cmd+=" --model-type ${dino_model}"
     python_cmd+=" --desc-layer $layer"
@@ -97,6 +102,7 @@ for global_vocab in ${global_vocabs[*]}; do
     python_cmd+=" --prog.data-vg-dir ${data_vg_dir}"
     python_cmd+=" --prog.cache-dir ${cache_dir}"
     python_cmd+=" --prog.vg-dataset-name ${dataset}"
+    python_cmd+=" --save_vlad_descs ${cache_dir}/vocabulary/${dino_model}/${model_id}/descs"
     # python_cmd+=" --prog.use-wandb"
     python_cmd+=" --prog.wandb-proj ${wandb_project}"
     python_cmd+=" --prog.wandb-entity ${wandb_entity}"
@@ -108,12 +114,12 @@ for global_vocab in ${global_vocabs[*]}; do
         python_cmd+=" --db-samples.17places 1"
     elif [ "$global_vocab" == "urban" ]; then
         python_cmd+=" --db-samples.Oxford 1"
-        python_cmd+=" --db-samples.st-lucia 1"
-        python_cmd+=" --db-samples.pitts30k 4"
+        python_cmd+=" --db-samples.st-lucia 2"
+        python_cmd+=" --db-samples.pitts30k 6"
     elif [ "$global_vocab" == "aerial" ]; then
         python_cmd+=" --db-samples.Tartan-GNSS-test-rotated 1"
         python_cmd+=" --db-samples.Tartan-GNSS-test-notrotated 1"
-        python_cmd+=" --db-samples.VPAir 2"
+        python_cmd+=" --db-samples.VPAir 6"
     elif [ "$global_vocab" == "hawkins" ]; then
         python_cmd+=" --db-samples.hawkins 1"
     elif [ "$global_vocab" == "laurel_caverns" ]; then

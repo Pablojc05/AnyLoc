@@ -49,8 +49,10 @@ class DinoV2ExtractFeatures:
             - device:   PyTorch device to use
         """
         self.vit_type: str = dino_model
+        print(f"Loading DINOv2 model '{dino_model}'...")
         self.dino_model: nn.Module = torch.hub.load(
                 'facebookresearch/dinov2', dino_model)
+        print(f"DINOv2 model '{dino_model}' loaded")
         self.device = torch.device(device)
         self.dino_model = self.dino_model.eval().to(self.device)
         self.layer: int = layer

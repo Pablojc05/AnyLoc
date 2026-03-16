@@ -68,11 +68,11 @@ from sklearn.manifold import TSNE
 import distinctipy as dipy
 import joblib
 from typing import Literal, List
-import gradio as gr
+
 import time
 import glob
 import shutil
-import matplotlib.pyplot as plt
+
 from copy import deepcopy
 # DINOv2 imports
 from utilities import DinoV2ExtractFeatures
@@ -88,10 +88,10 @@ DOMAINS = ["aerial", "indoor", "urban"]
 T3 = Literal["dinov2_vits14", "dinov2_vitb14", "dinov2_vitl14", 
                 "dinov2_vitg14"]
 _ex = lambda x: os.path.realpath(os.path.expanduser(x))
-dino_model: T3 = "dinov2_vitg14"
-desc_layer: int = 31
+dino_model: T3 = "dinov2_vitl14"
+desc_layer: int = 20
 desc_facet: T1 = "value"
-num_c: int = 8
+num_c: int = 16
 cache_dir: str = _ex("./cache") # Directory containing program cache
 max_img_size: int = 1024    # Image resolution (max dim/size)
 max_num_imgs: int = 16      # Max number of images to upload
@@ -113,12 +113,22 @@ ext_s = f"{dino_model}/l{desc_layer}_{desc_facet}_c{num_c}"
 vc_dir = os.path.join(cache_dir, "vocabulary", ext_s)
 assert os.path.isdir(vc_dir), f"VLAD directory: {vc_dir} not found"
 # GeM path (cache)
-gem_cf = os.path.join(cache_dir, "gem_cache", "result_dino_v2.gz")
+# gem_cf = os.path.join(cache_dir, "experiments/ablations/DINO_V2_GeM/l20_value/Oxford/dinov2_vitl14/", "results_2026_03_02_10_10_37.gz")
+gem_cf = os.path.join(cache_dir, "experiments/ablations/DINO_V2_GeM/l20_value/VPAir/dinov2_vitl14/", "results_2026_03_13_20_38_38.gz")
+# gem_cf = os.path.join(cache_dir, "gem_cache", "result_dino_v2.gz")
 assert os.path.isfile(gem_cf), f"GeM cache: {gem_cf} not found"
 gem_cache = joblib.load(gem_cf)
-assert gem_cache["model"]["type"] == dino_model
-assert gem_cache["model"]["layer"] == desc_layer
-assert gem_cache["model"]["facet"] == desc_facet
+# List the contents in the GeM cache
+# print("GeM cache content:")
+for k in gem_cache.keys():
+    print(f"  {k}: {type(gem_cache[k])}")
+    # Check inside the content key for dataset names and descriptor shapes
+    print(f"Cache content for {k}: {gem_cache[k]}")
+
+assert gem_cache["Model-Type"] == dino_model
+# Compare string with integer to assert correct layer
+assert gem_cache['Desc-Layer'] == str(desc_layer)
+assert gem_cache["Desc-Facet"] == desc_facet
 fig = plt.figure()  # Main figure
 fig.clear()
 # Base image transformations
@@ -269,6 +279,10 @@ def get_gem_descs_cache(use_d, pr = gr.Progress()):
         "labels": [],
         "descs": [],
     }
+    # Print key-values in the cache for debugging
+    print("GeM cache content:")
+    for k in gem_cache.keys():
+        print(f"  {k}: {type(gem_cache[k])}")
     for i, ds in enumerate(gem_cache["data"]):
         # GeM descriptors from data: n_desc, desc_dim
         d: np.ndarray = gem_cache["data"][ds]["descriptors"]
@@ -437,7 +451,7 @@ def tab_cluster_viz():
         return images
     # A wrapper to unbatch images (and pad to max)
     def unbatch_images(imgs_batch, nimg):
-        ret = [gr.Image.update(visible=False) \
+        ret = [gr.update(visible=False) \
                 for _ in range(max_num_imgs)]
         if imgs_batch is None or len(imgs_batch) == 0:
             return ret
@@ -446,22 +460,24 @@ def tab_cluster_viz():
                 img_np = np.array(imgs_batch[i])
             else:
                 img_np = None
-            ret[i] = gr.Image.update(img_np, visible=True)
+            ret[i] = gr.update(value=img_np, visible=True)
         return ret
     
     # ---- Examples ----
     # Two images from each domain
+    # Common base path for examples
+    examples_base = "./cache/imgs/"
     gr.Examples(
         [
         ["Aerial", 2, 
-            "ex_aerial_nardo-air_db-42.png",
-            "ex_aerial_nardo-air_qu-42.png",],
+            examples_base + "aerial/nardo-air_db-42.png",
+            examples_base + "aerial/nardo-air_qu-42.png",],
         ["Indoor", 2,
-            "ex_indoor_17places_db-75.jpg",
-            "ex_indoor_17places_qu-75.jpg"],
+            examples_base + "indoor/17places_db-75.jpg",
+            examples_base + "indoor/17places_qu-75.jpg"],
         ["Urban", 2,
-            "ex_urban_oxford_db-75.png",
-            "ex_urban_oxford_qu-75.png"],],
+            examples_base + "urban/oxford_db-75.png",
+            examples_base + "urban/oxford_qu-75.png"],],
         [domain, nimg_s, *imgs],
     )
     
@@ -520,11 +536,12 @@ def tab_gem_tsne():
     bttn1 = gr.Button("Click Me!")
     
     # ---- Examples ----
+    examples_base = "./cache/imgs/"
     gr.Examples(
         [
-            ["./ex_dining_room.jpeg", "./ex_city_road.jpeg"],
-            ["./ex_manhattan_aerial.jpeg", "./ex_city_road.jpeg"],
-            ["./ex_dining_room.jpeg", "./ex_manhattan_aerial.jpeg"],
+            [examples_base + "ex_dining_room.jpeg", examples_base + "ex_city_road.jpeg"],
+            [examples_base + "ex_manhattan_aerial.jpeg", examples_base + "ex_city_road.jpeg"],
+            [examples_base + "ex_dining_room.jpeg", examples_base + "ex_manhattan_aerial.jpeg"],
         ],
         [*imgs],
     )
@@ -550,9 +567,9 @@ with gr.Blocks() as demo:
     def var_num_img(s):
         n = int(s)  # Slider (string) value as int
         assert 1 <= n <= max_num_imgs, f"Invalid num of images: {n}!"
-        return [gr.Image.update(label=f"Image {i+1}", visible=True) \
+        return [gr.update(label=f"Image {i+1}", visible=True) \
                 for i in range(n)] \
-            + [gr.Image.update(visible=False) \
+            + [gr.update(visible=False) \
                 for _ in range(max_num_imgs - n)]
     
     # ---- State declarations ----

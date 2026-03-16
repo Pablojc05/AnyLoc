@@ -6,12 +6,13 @@
 
 # ---- Program arguments for user (after setting up datasets) ----
 # Directory for storing experiment cache
-cache_dir="/scratch/avneesh.mishra/vl-vpr/cache"
+cache_dir="/home/pjimenez/workspaces/anyloc_ws/src/AnyLoc/demo/cache"
 # Directory where the datasets are downloaded
-data_vg_dir="/home2/avneesh.mishra/Documents/vl-vpr/datasets_vg/datasets"
+data_vg_dir="/media/pjimenez/ExtremeSSD/Backup_portatil_pjimenez/Tarea_Localizacion/AnyLoc2023-Public-Data/Public/Datasets-All"
 # Dino models and layers: "Model, <Space separated layers>"
 dino_models_layers=(
-    "dinov2_vitg14, 31"
+    # "dinov2_vitg14, 31"
+    "dinov2_vitl14, 20"
     # "dinov2_vitg14, `echo {39..0..1}`"
     # "dinov2_vitl14, `echo {23..0..1}`"
     # "dinov2_vitb14, `echo {11..0..1}`"
@@ -27,12 +28,14 @@ export CUDA_VISIBLE_DEVICES=$gpu
 # Datasets
 # datasets=("Oxford" "gardens" "17places" "baidu_datasets" "st_lucia" "pitts30k")
 # datasets=("Oxford" "baidu_datasets")
-# datasets=("VPAir")
-datasets=("17places")
+datasets=("VPAir")
+# datasets=("17places")
+# datasets=("Oxford")
 # WandB parameters
-wandb_entity="vpr-vl"
+wandb_entity="catec"
 # wandb_project="Paper_Dino-v2_Ablations"
-wandb_project="Paper_Unstructured_Benchmarks"
+# wandb_project="Paper_Unstructured_Benchmarks"
+wandb_project="Prueba_Dino-v2_GeM_Ablations"
 
 
 # ----------- Main Experiment Code -----------
@@ -83,6 +86,7 @@ for dataset in ${datasets[*]}; do
         # python_cmd+=" --sub-sample-db 10"
         python_cmd+=" --gem-elem-by-elem"
     fi
+    # python_cmd+=" --gem-elem-by-elem"
     # python_cmd+=" --prog.use-wandb"
     python_cmd+=" --prog.wandb-proj ${wandb_project}"
     python_cmd+=" --prog.wandb-entity ${wandb_entity}"

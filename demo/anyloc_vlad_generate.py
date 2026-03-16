@@ -61,7 +61,7 @@ class LocalArgs:
     # Domain to use for loading VLAD cluster centers
     domain: Literal["aerial", "indoor", "urban"] = "urban"
     # Number of clusters (cluster centers for VLAD) - read from cache
-    num_c: int = 32
+    num_c: int = 16
 
 
 # %%
@@ -113,11 +113,11 @@ def main(largs: LocalArgs):
     save_dir = _ex(largs.out_dir)
     device = torch.device("cuda")
     # Dino_v2 properties (parameters)
-    desc_layer: int = 31
+    desc_layer: int = 20 # 31 for ViT-G, 20 for ViT-L
     desc_facet: Literal["query", "key", "value", "token"] = "value"
     num_c: int = largs.num_c
     # Domain for use case (deployment environment)
-    domain: largs.domain
+    domain = largs.domain
     # Maximum image dimension
     max_img_size: int = largs.max_img_size
     # Ensure inputs are fine
@@ -128,17 +128,18 @@ def main(largs: LocalArgs):
         print("Save directory already exists, overwriting possible!")
     
     # Load the DINO extractor model
-    extractor = DinoV2ExtractFeatures("dinov2_vitg14", desc_layer,
+    extractor = DinoV2ExtractFeatures("dinov2_vitl14", desc_layer,
         desc_facet, device=device)
     base_tf = tvf.Compose([ # Base image transformations
         tvf.ToTensor(),
         tvf.Normalize(mean=[0.485, 0.456, 0.406], 
                         std=[0.229, 0.224, 0.225])
     ])
+    print("DINOv2 model loaded")
     
     # VLAD object (load cache)
     cache_dir = _ex("./cache")
-    ext_specifier = f"dinov2_vitg14/"\
+    ext_specifier = f"dinov2_vitl14/"\
             f"l{desc_layer}_{desc_facet}_c{num_c}"
     c_centers_file = os.path.join(cache_dir, "vocabulary", 
             ext_specifier, domain, "c_centers.pt")
@@ -149,12 +150,15 @@ def main(largs: LocalArgs):
     vlad = VLAD(num_c, desc_dim=None, 
         cache_dir=os.path.dirname(c_centers_file))
     vlad.fit(None)  # Load the vocabulary
+
+    print("VLAD object created and vocabulary loaded")
     
     # Global descriptor generation
     imgs_dir = _ex(largs.in_dir)
     assert os.path.isdir(imgs_dir), "Input directory doesn't exist!"
     img_fnames = glob.glob(f"{imgs_dir}/*.jpg")
     img_fnames = natsort.natsorted(img_fnames)
+    print(f"Found {len(img_fnames)} images in the input directory")
     if largs.first_n is not None:
         img_fnames = img_fnames[:largs.first_n]
     for img_fname in tqdm(img_fnames):

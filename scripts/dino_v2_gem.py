@@ -82,9 +82,9 @@ class LocalArgs:
     # Dataset split for VPR (BaseDataset)
     data_split: Literal["train", "test", "val"] = "test"
     # Sub-sample query images (RAM or VRAM constraints) (1 = off)
-    sub_sample_qu: int = 1
+    sub_sample_qu: int = 6
     # Sub-sample database images (RAM or VRAM constraints) (1 = off)
-    sub_sample_db: int = 1
+    sub_sample_db: int = 6
     # GeM Pooling Parameter
     gem_p: float = 3
     # Values for top-k (for monitoring)
@@ -198,10 +198,13 @@ def build_gems(largs: LocalArgs, vpr_ds: BaseDataset,
         print("Building GeMs for database...")
     db_indices = np.arange(0, num_db, largs.sub_sample_db)
     # All database descs (local descriptors): [n_db, n_d, d_dim]
+    print("Extracting patch descriptors for database...")
     full_db = extract_patch_descriptors(db_indices)
     if verbose:
         print(f"Full database descriptor shape: {full_db.shape}")
+    print("Calculating GeM descriptors for database...")
     db_gems: torch.Tensor = get_gem_descriptors(full_db)
+    print("GeM descriptors for database calculated")
     del full_db
     if verbose:
         print(f"Database GeMs shape: {db_gems.shape}")
@@ -226,7 +229,7 @@ def build_gems(largs: LocalArgs, vpr_ds: BaseDataset,
         if verbose:
             print("Extracting GeMs for vpair distractors...")
         try:
-            db_dis_indices = np.arange(0, num_dis_db, largs.sub_sample_db)
+            db_dis_indices = np.arange(0, num_dis_db, largs.sub_sample_db*4)
             full_dis_db = extract_patch_descriptors(db_dis_indices,
                     use_distractor=True)
             if verbose:
