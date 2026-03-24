@@ -134,6 +134,38 @@ You can also use an existing conda environment, say `vl-vpr`, by doing
 bash ./setup_conda.sh vl-vpr
 ```
 
+If you prefer `mamba`, which is way faster than conda, follow these steps to build a functional mamba environment that fix some versioning issues:
+1. Download and install mamba.
+```bash
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash Miniforge3-$(uname)-$(uname -m).sh
+# Check installation
+conda info
+mamba info
+# In case you don't want mamba base environment to be activated automatically when opening the shell
+conda config --set auto_activate_base false
+```
+2. Create environment with python 3.10 (python 3.9 gives errors with function arguments of Union format).
+```bash
+mamba create -n anyloc python=3.10
+mamba activate anyloc
+```
+3. Setup the environment correctly.
+```bash
+cd <AnyLoc_folder>
+bash setup_conda.sh
+# Check mamba list, specially for pytorch and torchvision package-build names, they have to be built with cuda
+# If they are built with cpu, then do this:
+mamba remove pytorch torchvision torchaudio
+mamba repoquery search pytorch=2.0.0 --channel pytorch
+mamba search -c pytorch "pytorch=2.0.0=*cu*"
+mamba install -c pytorch -c nvidia pytorch=2.0.0 torchvision torchaudio pytorch-cuda=11.7
+# Check if transformers pkg has been uninstalled, if so, install it again but omiting the version
+mamba list | grep transformers
+mamba install -c conda-forge transformers
+# Do the same for faiss-gpu, fast-pytorch-kmeans and onedrivedownloader, they may have been uninstalled due to versions mismatch
+```
+
 Note the following:
 
 - All our public release files can be found in our [public release][public-release-link].
