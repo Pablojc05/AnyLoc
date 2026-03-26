@@ -250,6 +250,7 @@ conda_raw_install -c conda-forge gradio
 pip_install torchviz=='0.0.2'
 pip_install torchscan
 pip_install onedrivedownloader
+pip_install rasterio
 # Core packages using pip_install
 if [ $dev_tools == "true" ]; then 
     echo_info "------ Installing documentation and packaging tools ------"
