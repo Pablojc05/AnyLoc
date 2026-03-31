@@ -1,13 +1,16 @@
-# Runs with Dino-v2 using global (mixed) vocabulary
+# Runs with Dino-v1 using global (mixed) vocabulary
 #
-# Usage: bash ./scripts/dino_v2_global_vocab_ablations.sh
+# Usage: bash ./scripts/dino_global_vocab_vlad_ablations.sh
 #
 
 # ---- Program arguments for user (after setting up datasets) ----
 # Directory for storing VLAD cache (an ID will be used in a subfolder)
-cache_dir="/scratch/avneesh.mishra/vl-vpr/cache"
+# cache_dir="/scratch/avneesh.mishra/vl-vpr/cache"
+current_dir="$PWD"
+cache_dir="$current_dir/demo/cache"
 # Directory where the datasets are downloaded
-data_vg_dir="/home2/avneesh.mishra/Documents/vl-vpr/datasets_vg/datasets"
+# data_vg_dir="/home2/avneesh.mishra/Documents/vl-vpr/datasets_vg/datasets"
+data_vg_dir="/media/upia/c752a2d6-42ac-4005-b6ed-6a16c25ba66b/pjimenez/aerial_datasets"
 # Dino models
 dino_models=("dino_vits8")
 dino_layers=(9)
@@ -18,10 +21,11 @@ num_clusters=(128)
 gpu=${1:-0}
 export CUDA_VISIBLE_DEVICES=$gpu
 # datasets=("Oxford" "gardens" "17places" "baidu_datasets" "st_lucia" "pitts30k")
-datasets=("Oxford")
+datasets=("VPAir")
 # Global vocabulary (datasets to include)
 # global_vocabs=("structured" "unstructured" "both")
-global_vocabs=("indoor" "urban" "aerial")
+# global_vocabs=("indoor" "urban" "aerial")
+global_vocabs=("aerial")
 # WandB parameters
 wandb_entity="vpr-vl"
 wandb_project="Paper_Dino-v1_Global_Vocab_Ablations"
@@ -65,7 +69,7 @@ for global_vocab in ${global_vocabs[*]}; do
     # ID for VLAD cache (model identifier)
     model_id="l${layer}_${facet}_c${nc}/${global_vocab}"
     wandb_name="DINO_V1_VLAD_GLOBAL_VOCAB/${model_id}/${dataset}/${dino_model}"
-    exp_id="ablations/$wandb_name"
+    exp_id="anyloc_aerial"
     python_cmd="python ./scripts/dino_global_vocab_vlad.py"
     python_cmd+=" --exp-id ${exp_id}"
     python_cmd+=" --vlad-cache-dir ${cache_dir}/vpr_global_dino_v1/${model_id}"
@@ -76,6 +80,7 @@ for global_vocab in ${global_vocabs[*]}; do
     python_cmd+=" --prog.data-vg-dir ${data_vg_dir}"
     python_cmd+=" --prog.cache-dir ${cache_dir}"
     python_cmd+=" --prog.vg-dataset-name ${dataset}"
+    python_cmd+=" --save_vlad_descs ${cache_dir}/vocabulary/${dino_model}/${model_id}/descs"
     # python_cmd+=" --prog.use-wandb"
     python_cmd+=" --prog.wandb-proj ${wandb_project}"
     python_cmd+=" --prog.wandb-entity ${wandb_entity}"
@@ -92,7 +97,7 @@ for global_vocab in ${global_vocabs[*]}; do
     elif [ "$global_vocab" == "aerial" ]; then
         python_cmd+=" --db-samples.Tartan-GNSS-test-rotated 1"
         python_cmd+=" --db-samples.Tartan-GNSS-test-notrotated 1"
-        python_cmd+=" --db-samples.VPAir 2"
+        python_cmd+=" --db-samples.VPAir 1"
     else
         echo "Invalid global vocab!"
         exit 1

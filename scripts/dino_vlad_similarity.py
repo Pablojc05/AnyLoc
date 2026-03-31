@@ -35,14 +35,16 @@ from configs import ProgArgs, prog_args, BaseDatasetArgs, \
         base_dataset_args, device
 import time
 import joblib
+import tyro
+import traceback
 from dvgl_benchmark.datasets_ws import BaseDataset
 from custom_datasets.catec_dataloader import Catec
 
 # Setup parameters
-cache_dir = os.path.join(lib_path, "demo/cache")
-datasets_dir = "/media/pjimenez/ExtremeSSD/Backup_portatil_pjimenez/Tarea_Localizacion/AnyLoc2023-Public-Data/Public/Datasets-All"
+cache_dir = os.path.join(lib_path, "cache_foundloc")
+datasets_dir = "/media/upia/c752a2d6-42ac-4005-b6ed-6a16c25ba66b/pjimenez/aerial_datasets"
 dataset_name = "fuentes_andalucia"
-query_img_path = os.path.join(datasets_dir, "VPAir/queries/00074.png")
+query_img_path = os.path.join(datasets_dir, "fuentes_andalucia/queries_samples/muestra_vuelo_11mar_5.png")
 vlad_cache_dir = os.path.join(cache_dir, "vocabulary/dino_vits8/l9_key_c128/aerial")
 vlad_save_dir = os.path.join(vlad_cache_dir, "descs")
 
@@ -164,7 +166,7 @@ def build_vlads(largs: LocalArgs, ds: BaseDataset):
             ret = extractor.extract_descriptors(img, 
                     layer=largs.desc_layer, facet=largs.desc_facet) # [1, 1, num_descs, d_dim]
             descs.append(ret.cpu()[0])
-            descs = torch.cat(descs, dim=0)  # [num_images, num_descs, d_dim]
+        descs = torch.cat(descs, dim=0)  # [num_images, num_descs, d_dim]
         return descs
     
     # Check for cluster centers
@@ -173,7 +175,7 @@ def build_vlads(largs: LocalArgs, ds: BaseDataset):
             vlad.fit(None)
     else:    
         print("Cluster centers not found in cache, cannot proceed!")
-        raise FileNotFoundError(f"Cluster centers file not found: {vlad_cache_dir}/c_centers.pt")
+        raise FileNotFoundError(f"Cluster centers file not found: {cache_dir}/c_centers.pt")
 
 
     # Database VLADs
@@ -210,8 +212,10 @@ def build_vlads(largs: LocalArgs, ds: BaseDataset):
                     layer=largs.desc_layer, facet=largs.desc_facet) # [1, 1, num_descs, d_dim]
     print(f"Extracted query features shape: {query_features.shape}")
     print(f"Devices used: query image tensor: {query_img.device}, query features: {query_features.device}, VLAD cluster centers: {vlad.c_centers.device}")
-    query_desc = query_features.cpu()[0]  # [num_descs, d_dim]
+    query_desc = query_features.cpu()[0][0]  # [num_descs, d_dim]
+    print(f"Query descriptors shape (after CPU transfer): {query_desc.shape}")
     query_vlad = vlad.generate(query_desc, None)  # [vlad_dim]
+    print(f"Query VLAD shape: {query_vlad.shape}")
 
     return db_vlads, query_vlad
 
@@ -271,3 +275,15 @@ def main(largs: LocalArgs):
         torch.save(db_vlads.cpu(), f"{save_dir}/db-{ds_name}.pt")
         torch.save(query_vlad.cpu(), f"{save_dir}/qu-{ds_name}.pt")
         print(f"Saved files [db,qu]-{ds_name}.pt in {save_dir}")
+
+if __name__ == "__main__" and ("ipykernel" not in sys.argv[0]):
+    largs = tyro.cli(LocalArgs, description=__doc__)
+    _start = time.time()
+    try:
+        main(largs)
+    except:
+        print("Unhandled exception")
+        traceback.print_exc()
+    finally:
+        print(f"Program ended in {time.time()-_start:.3f} seconds")
+        exit(0)
