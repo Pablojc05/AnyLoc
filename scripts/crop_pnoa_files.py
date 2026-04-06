@@ -120,10 +120,10 @@ def main():
     print(f"ROI transform: {roi_transform}")
 
     # Compute center coordinates of the ROI
-    center_col = width / 2
-    center_row = height / 2
-    center_x, center_y = roi_transform * (center_col, center_row)
-    print(f"ROI Center (geographic): ({center_x}, {center_y})")
+    roi_center_col = ROI_WIDTH / 2
+    roi_center_row = ROI_HEIGHT / 2
+    roi_center_x, roi_center_y = roi_transform * (roi_center_col, roi_center_row)
+    print(f"ROI Center (geographic): ({roi_center_x}, {roi_center_y})")
 
     # ---- RGB visualization of ROI ----
     roi_nb, roi_h, roi_w = roi.shape
@@ -162,7 +162,7 @@ def main():
     print("\n------ Starting tile cropping and saving -----")
     with open(csv_path, mode='w', newline='') as csv_file:
         csv_writer = csv.writer(csv_file)
-        csv_writer.writerow(['tile_name', 'center_x', 'center_y'])  # Write header
+        csv_writer.writerow(['tile_name', 'easting', 'northing'])  # Write header
 
         tile_count = 0
         for row in range(half_y, roi_h - half_y + 1, step_px_y):
@@ -174,7 +174,7 @@ def main():
                 tile_transform = window_transform(tile_window, roi_transform)
 
                 # Compute center coordinates of the tile
-                tile_center_x, tile_center_y = tile_transform * (col, row)
+                tile_center_x, tile_center_y = tile_transform * (half_x, half_y)
 
                 # Read the tile data
                 tile_data = roi[:, row-half_y:row+half_y, col-half_x:col+half_x]
@@ -218,7 +218,7 @@ def main():
         log_file.write(f"PNOA file: {args.pnoa_file}\n")
         log_file.write(f"Image resolution (m/pix): ({res_x}, {res_y})\n")
         log_file.write(f"ROI pixel coordinates: (col_off: {ROI_COL_OFF}, row_off: {ROI_ROW_OFF}, width: {ROI_WIDTH}, height: {ROI_HEIGHT})\n")
-        log_file.write(f"ROI center coordinates (geographic): ({center_x}, {center_y})\n")
+        log_file.write(f"ROI center coordinates (geographic): ({roi_center_x}, {roi_center_y})\n")
         log_file.write(f"Tile size (pixels): ({SAMPLE_WIDTH}, {SAMPLE_HEIGHT})\n")
         log_file.write(f"Sampling distance (meters): {STEP_M}\n")
         log_file.write(f"Sampling distance (pixels): ({step_px_x}, {step_px_y})\n")
