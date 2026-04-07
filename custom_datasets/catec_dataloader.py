@@ -25,22 +25,11 @@ import numpy as np
 import cv2
 import torch
 import torch.utils.data 
-from typing import List, Union
+from typing import List, Union, Tuple
 from natsort import natsorted
-from configs import prog_args
-from scipy.spatial.transform import Rotation
-from scipy.spatial.distance import euclidean
-
 from torch.utils.data import DataLoader
-
-import os
-import torch
-import faiss
-import numpy as np
 from PIL import Image
 import torchvision.transforms as T
-from sklearn.neighbors import NearestNeighbors
-
 from utilities import CustomDataset
 
 def path_to_pil_img(path):
@@ -76,7 +65,7 @@ class Catec(CustomDataset):
         print(f"Dataset {self.dataset_name} from {self.datasets_folder} with split {self.split} loaded with {len(self.db_paths)} database images")
 
         self.db_abs_paths = []
-        self.q_abs_paths = []
+        # self.q_abs_paths = []
 
         for p in self.db_paths:
             self.db_abs_paths.append(os.path.join(self.datasets_folder,self.dataset_name,"reference_views",p))
@@ -99,6 +88,42 @@ class Catec(CustomDataset):
         # for i in range(len(self.gt_positives)):
         #     self.soft_positives_per_query.append(self.gt_positives[i][1]) #corresponds to index wise soft positives
 
+        # Load coordinates from tiles_locations.csv
+        csv_path = os.path.join(self.datasets_folder, self.dataset_name, "tiles_locations.csv")
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            # Create a dict for quick lookup: tile_name -> (easting, northing)
+            self.tile_to_coords = dict(zip(df['tile_name'], zip(df['easting'], df['northing'])))
+            # Build a list of coordinates in the same order as db_paths
+            self.db_coordinates = []
+            for tile_name in self.db_paths:  # db_paths are the filenames
+                if tile_name in self.tile_to_coords:
+                    self.db_coordinates.append(self.tile_to_coords[tile_name])
+                else:
+                    self.db_coordinates.append(None)  # Handle missing coords
+                    print(f"Warning: Coordinates not found for {tile_name}")
+            print(f"Loaded coordinates for {len(self.db_coordinates)} database images")
+        else:
+            self.tile_to_coords = {}
+            self.db_coordinates = [None] * self.db_num
+            print(f"Warning: tiles_locations.csv not found at {csv_path}. Coordinates will be None.")
+
+    def get_coordinates(self, index: Union[int, List[int], np.ndarray, torch.Tensor]) -> Union[Tuple[float, float], List[Tuple[float, float]]]:
+        """
+        Get the georeferenced coordinates (easting, northing) for the image at the given database index(es).
+        Returns None if coordinates are not available.
+        """
+        if isinstance(index, int):
+            return self.db_coordinates[index]
+        elif isinstance(index, list):
+            return [self.db_coordinates[int(i)] for i in index]
+        else:
+            if isinstance(index, torch.Tensor):
+                index = index.cpu().tolist()
+            else:
+                index = index.tolist()
+            return [self.db_coordinates[int(i)] for i in index]
+    
     def __getitem__(self, index):
         img = Image.open(self.images_paths[index])
 

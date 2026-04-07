@@ -449,7 +449,6 @@ def get_top_k_recall(top_k: List[int], db: torch.Tensor,
     index.add(db)
     distances, indices = index.search(qu, max(top_k))
     recalls = dict(zip(top_k, [0]*len(top_k)))
-    # print(qu.shape,indices.shape)
     for i_qu, qu_retr in enumerate(indices):
         for i_rec in top_k:
             # Correct database images (for the retrieval)
@@ -468,6 +467,56 @@ def get_top_k_recall(top_k: List[int], db: torch.Tensor,
             recalls[k] /= len(indices)
     return distances, indices, recalls
 
+def get_top_k_similarities(top_k: List[int], db: torch.Tensor, 
+        qu: torch.Tensor, method: str="cosine", 
+        norm_descs: bool=True, use_gpu: bool=False) -> Tuple[np.ndarray, np.ndarray]:
+    """
+        Given a database and query (or queries), get the top 'k'
+        retrievals (closest in database for each query) as indices (in
+        database), distances, and recalls.
+        
+        Parameters:
+        - top_k:    List of 'k' values for recall calculation. Eg:
+                    `list(range(1, 11))`.
+        - db:       Database descriptors of shape [n_db, d_dim].
+        - qu:       Query descriptors of shape [n_qu, d_dim]. If only
+                    one query (n_qu = 1), then shape [d_dim].
+        - method:   Method for faiss search. In {'cosine', 'l2'}.
+        - norm_descs:   If True, the descriptors are normalized in 
+                        function.
+        - use_gpu:  True if indexing (search) should be on GPU.
+        
+        Returns:
+        - distances:    The distances of queries to retrievals. The
+                        shape is [n_qu, max(top_k)]. It is the 
+                        distance (as specified in `method`) with the
+                        database item retrieved (index in `indices`).
+                        Sorted by distance.
+        - indices:      Indices of the database items retrieved. The
+                        shape is [n_qu, max(top_k)]. Sorted by 
+                        distance.
+    """
+    if len(qu.shape) == 1:
+        qu = qu.unsqueeze(0)
+    if norm_descs:
+        db = F.normalize(db)
+        qu = F.normalize(qu)
+    D = db.shape[1]
+    if method == "cosine":
+        index = faiss.IndexFlatIP(D)
+    elif method == "l2":
+        index = faiss.IndexFlatL2(D)
+    else:
+        raise NotImplementedError(f"Method: {method}")
+    if use_gpu:
+        res = faiss.StandardGpuResources()
+        index = faiss.index_cpu_to_gpu(res, 0 , index)
+
+    # Get the max(top-k) retrieval, then traverse list
+    index.add(db)
+    distances, indices = index.search(qu, max(top_k))
+
+    return distances, indices
 
 # %% --------------- Image processing functions ----------------
 # Pad an image
