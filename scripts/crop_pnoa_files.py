@@ -16,13 +16,23 @@ from rasterio.windows import Window
 from rasterio.windows import transform as window_transform
 
 from matplotlib import image, pyplot as plt
+# from matplotlib.patches import Rectangle
 from PIL import Image
+
+import time
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Crop PNOA files to ROIs")
     parser.add_argument("--pnoa_file", type=str, required=True, help="Path to the PNOA TIFF file")
     parser.add_argument("--output_dir", type=str, default="tiles", help="Directory to save the cropped tiles")
     return parser.parse_args()
+
+def clamp_int(value, min_value, max_value):
+    try:
+        value = int(value)
+    except ValueError:
+        return min_value
+    return max(min_value, min(max_value, value))
 
 def main():
     args = parse_args()
@@ -58,7 +68,6 @@ def main():
     orig_img[:,:,1] = np.ones([h, w])*bands[1]
     orig_img[:,:,2] = np.ones([h, w])*bands[2]
 
-
     fig1 = plt.figure(figsize=(9,7)) # figsize=(9,7)
     plt.imshow(orig_img)
     plt.title("Plotting original img from " + img_file)
@@ -79,31 +88,44 @@ def main():
     print(f"Image resolution: {img_src.res}")
 
     # --- Manage tile and step sizes variables ---
+    PLOT_TILES = False
     # Desired output tile size
-    SAMPLE_WIDTH = 420 # [pixels]
-    SAMPLE_HEIGHT = 420 # [pixels]
+    SAMPLE_WIDTH = 960 # [pixels]
+    SAMPLE_HEIGHT = 720 # [pixels]
     half_x = (SAMPLE_WIDTH // 2)
     half_y = (SAMPLE_HEIGHT // 2)
 
     # Desired step size between sampled tiles
-    STEP_M = 60 # [meters]
+    STEP_M = 80 # [meters]
     step_px_x = int(round(STEP_M / res_x)) # [pixels]
     step_px_y = int(round(STEP_M / res_y)) # [pixels]
 
     # FOV and overlap calculation
-    fov_m = SAMPLE_WIDTH * res_x  # Field of view in meters for the tile width
-    overlap_perc = ((fov_m - STEP_M) / fov_m) * 100  # Overlap percentage between tiles
+    fov_m_x = SAMPLE_WIDTH * res_x  # Field of view in meters for the tile width
+    fov_m_y = SAMPLE_HEIGHT * res_y  # Field of view in meters for the tile height
+    overlap_perc_x = ((fov_m_x - STEP_M) / fov_m_x) * 100  # Overlap percentage between tiles in x direction
+    overlap_perc_y = ((fov_m_y - STEP_M) / fov_m_y) * 100  # Overlap percentage between tiles in y direction
 
     print("\n------ Tile Parameters ------")
     print(f"Tile size in pixels: ({SAMPLE_WIDTH}, {SAMPLE_HEIGHT})")
     print(f"Step size in pixels: ({step_px_x}, {step_px_y})")
-    print(f"Overlap percentage: {overlap_perc:.2f}%")
+    print(f"Overlap percentage: {overlap_perc_x:.2f}% (x), {overlap_perc_y:.2f}% (y)")
 
-    # ---- Define ROI ----
-    ROI_COL_OFF = 3000
-    ROI_ROW_OFF = 14500
-    ROI_WIDTH = 2500
-    ROI_HEIGHT = 3500
+    # ROI selection
+    ax1 = fig1.gca()
+    plt.ion()
+    plt.show(block=False)
+
+    print("--- Enter ROI bounds in pixels ---")
+    ROI_COL_OFF = int(input("ROI column offset: "))
+    ROI_ROW_OFF = int(input("ROI row offset: "))
+    ROI_WIDTH = int(input("ROI width: "))
+    ROI_HEIGHT = int(input("ROI height: "))
+
+    ROI_COL_OFF = clamp_int(ROI_COL_OFF, 0, width - 1)
+    ROI_ROW_OFF = clamp_int(ROI_ROW_OFF, 0, height - 1)
+    ROI_WIDTH = clamp_int(ROI_WIDTH, 1, width - ROI_COL_OFF)
+    ROI_HEIGHT = clamp_int(ROI_HEIGHT, 1, height - ROI_ROW_OFF)
 
     print("\n------ ROI Parameters ------")
     print(f"ROI offset (pixels): ({ROI_COL_OFF}, {ROI_ROW_OFF})")
@@ -114,16 +136,10 @@ def main():
 
     # Read the ROI from the image using the window
     roi = img_src.read(window=roi_window)
-    
+
     # Update transform for the ROI
     roi_transform = window_transform(roi_window, img_src.transform)
     print(f"ROI transform: {roi_transform}")
-
-    # Compute center coordinates of the ROI
-    roi_center_col = ROI_WIDTH / 2
-    roi_center_row = ROI_HEIGHT / 2
-    roi_center_x, roi_center_y = roi_transform * (roi_center_col, roi_center_row)
-    print(f"ROI Center (geographic): ({roi_center_x}, {roi_center_y})")
 
     # ---- RGB visualization of ROI ----
     roi_nb, roi_h, roi_w = roi.shape
@@ -132,14 +148,38 @@ def main():
     ROI_rgb[:, :, 1] = np.ones([roi_h, roi_w])*roi[1]
     ROI_rgb[:, :, 2] = np.ones([roi_h, roi_w])*roi[2]
 
-    # Save ROI
-    roi_img_pil = Image.fromarray(ROI_rgb)
-    roi_img_path = os.path.join(output_path, "ROI.png")
-    roi_img_pil.save(roi_img_path)
+    fig_preview = plt.figure(figsize=(8, 8))
+    plt.imshow(ROI_rgb)
+    plt.title("ROI preview")
+    plt.axis("off")
+    plt.show(block=False)
+    plt.pause(0.1)
+
+    confirm = input("Confirm ROI? (y/n): ").strip().lower()
+    if confirm != "y":
+        print("ROI not confirmed. Exiting.")
+        plt.close("all")
+        return
+    plt.close(fig_preview)
+    
+    # Close fig1 after confirmation
+    plt.close(fig1)
+
+    # Compute center coordinates of the ROI
+    roi_center_col = ROI_WIDTH / 2
+    roi_center_row = ROI_HEIGHT / 2
+    roi_center_x, roi_center_y = roi_transform * (roi_center_col, roi_center_row)
+    print(f"ROI Center (geographic): ({roi_center_x}, {roi_center_y})")
 
     fig2, ax2 = plt.subplots(figsize=(8, 8))
     ax2.imshow(ROI_rgb)
     ax2.set_title("Cropped ROI with sampling grid")
+    plt.draw()
+    
+    # Save ROI
+    roi_img_pil = Image.fromarray(ROI_rgb)
+    roi_img_path = os.path.join(output_path, "ROI.jpg")
+    roi_img_pil.save(roi_img_path, format='JPEG', quality=85, optimize=True)
 
     # Compute grid center pixels for the tiles, taking into account the tile size, step size and border conditions
     centers = []
@@ -152,13 +192,31 @@ def main():
     center_rows = [c[1] for c in centers]
     scatter_all = ax2.scatter(center_cols, center_rows, c='red', s=10)
 
+    # for idx, (col, row) in enumerate(centers):
+    #     if idx % 2 != 0:
+    #         continue
+
+    #     rect = Rectangle(
+    #         (col - half_x, row - half_y),
+    #         SAMPLE_WIDTH,
+    #         SAMPLE_HEIGHT,
+    #         edgecolor='cyan',
+    #         facecolor='none',
+    #         linewidth=1,
+    #         linestyle='--'
+    #     )
+    #     ax2.add_patch(rect)
+
     # Current point (green) - will be updated in the loop
     scatter_current = ax2.scatter([], [], c='green', s=40)
 
     plt.ion()  # interactive mode
 
     # --- Divide the ROI in tiles ---
-    fig3, ax3 = plt.subplots(figsize=(4, 4))
+    fig3 = None
+    ax3 = None
+    if PLOT_TILES:
+        fig3, ax3 = plt.subplots(figsize=(4, 4))
     print("\n------ Starting tile cropping and saving -----")
     with open(csv_path, mode='w', newline='') as csv_file:
         csv_writer = csv.writer(csv_file)
@@ -180,21 +238,26 @@ def main():
                 tile_data = roi[:, row-half_y:row+half_y, col-half_x:col+half_x]
 
                 nb,h,w = tile_data.shape
-                tile_img = np.zeros([h, w, 3],dtype=tile_data.dtype)
-                tile_img[:,:,0] = np.ones([h, w])*tile_data[0]
-                tile_img[:,:,1] = np.ones([h, w])*tile_data[1]
-                tile_img[:,:,2] = np.ones([h, w])*tile_data[2]
+                # tile_img = np.zeros([h, w, 3],dtype=tile_data.dtype)
+                # tile_img[:,:,0] = np.ones([h, w])*tile_data[0]
+                # tile_img[:,:,1] = np.ones([h, w])*tile_data[1]
+                # tile_img[:,:,2] = np.ones([h, w])*tile_data[2]
+                tile_img = np.moveaxis(tile_data[:3], 0, -1)
 
                 # Visualize the tile
-                ax3.clear()
-                ax3.imshow(tile_img)
-                ax3.set_title(f"Tile {tile_count} - Center: ({tile_center_x:.2f}, {tile_center_y:.2f})")
-                ax3.axis('off')
+                if PLOT_TILES:
+                    ax3.clear()
+                    ax3.imshow(tile_img)
+                    ax3.set_title(f"Tile {tile_count} - Center: ({tile_center_x:.2f}, {tile_center_y:.2f})")
+                    ax3.axis('off')
+                    fig3.canvas.draw()
 
                 # Refresh plots
-                fig2.canvas.draw()
-                fig3.canvas.draw()
-                plt.pause(0.2)  # Pause to visualize the tile
+                # start_time_draw = time.perf_counter()
+                # fig2.canvas.draw()
+                # end_time_draw = time.perf_counter()
+                # print(f"Plot drawing time: {end_time_draw - start_time_draw:.4f} seconds")
+                plt.pause(0.05)  # Pause to visualize the tile
 
                 # Save the tile as a png file
                 tile_filename = f"{tile_count:04d}.png"
@@ -210,6 +273,7 @@ def main():
 
         print(f"\nTotal tiles created: {tile_count}")
 
+    # plt.show()
     plt.close()
 
     # Save log with selected parameters
@@ -222,8 +286,8 @@ def main():
         log_file.write(f"Tile size (pixels): ({SAMPLE_WIDTH}, {SAMPLE_HEIGHT})\n")
         log_file.write(f"Sampling distance (meters): {STEP_M}\n")
         log_file.write(f"Sampling distance (pixels): ({step_px_x}, {step_px_y})\n")
-        log_file.write(f"Field of view (meters): {fov_m:.2f}\n")
-        log_file.write(f"Overlap percentage: {overlap_perc:.2f}%\n")
+        log_file.write(f"Field of view (meters): {fov_m_x:.2f} (x), {fov_m_y:.2f} (y)\n")
+        log_file.write(f"Overlap percentage: {overlap_perc_x:.2f}% (x), {overlap_perc_y:.2f}% (y)\n")
         log_file.write(f"Total tiles created: {tile_count}\n")
     log_file.close()
     print(f"Saved settings log at: {log_path}")
