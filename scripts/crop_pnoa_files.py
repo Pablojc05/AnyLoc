@@ -24,6 +24,7 @@ import time
 def parse_args():
     parser = argparse.ArgumentParser(description="Crop PNOA files to ROIs")
     parser.add_argument("--pnoa_file", type=str, required=True, help="Path to the PNOA TIFF file")
+    parser.add_argument("--only_roi", action="store_true", help="If set, only the ROI will be saved without further tiling")
     parser.add_argument("--output_dir", type=str, default="tiles", help="Directory to save the cropped tiles")
     return parser.parse_args()
 
@@ -176,11 +177,33 @@ def main():
     ax2.set_title("Cropped ROI with sampling grid")
     plt.draw()
     
-    # Save ROI
+    # Save ROI in jpg format
     roi_img_pil = Image.fromarray(ROI_rgb)
     roi_img_path = os.path.join(output_path, "ROI.jpg")
     roi_img_pil.save(roi_img_path, format='JPEG', quality=85, optimize=True)
 
+    # Save ROI as tiff with georeferencing
+    roi_tiff_path = os.path.join(output_path, "ROI.tif")
+
+    # Update metadata for the ROI
+    roi_meta = img_src.meta.copy()
+    roi_meta.update({
+        'height': roi_h,
+        'width': roi_w,
+        'transform': roi_transform
+    })
+
+    # Write the ROI as a GeoTIFF with georeferencing
+    with rasterio.open(roi_tiff_path, 'w', **roi_meta) as roi_dst:
+        roi_dst.write(roi)
+
+    print(f"Saved georeferenced ROI at: {roi_tiff_path}")
+
+    # Exit if only ROI is requested
+    if args.only_roi:
+        print("Only ROI requested. Exiting.")
+        plt.close("all")
+        return
     # Compute grid center pixels for the tiles, taking into account the tile size, step size and border conditions
     centers = []
     for row in range(half_y, roi_h - half_y + 1, step_px_y):
